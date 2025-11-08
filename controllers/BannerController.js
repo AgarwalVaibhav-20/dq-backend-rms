@@ -130,14 +130,19 @@ exports.getBanners = async (req, res) => {
 // Public API to get banners by restaurantId (for customer menu)
 exports.getPublicBanners = async (req, res) => {
   try {
-    const { restaurantId } = req.query;
+    // Priority: env RESTAURANT_ID (supports both spellings) > query.restaurantId
+    const getRestaurantIdFromEnv = () => {
+      return process.env.RESTAURANT_ID || process.env.RESTAURENT_ID;
+    };
+    const restaurantId = getRestaurantIdFromEnv() || req.query.restaurantId;
     
     console.log("🌐 Public Banner API - restaurantId:", restaurantId);
+    console.log("🔍 Source: RESTAURANT_ID=", process.env.RESTAURANT_ID, "RESTAURENT_ID=", process.env.RESTAURENT_ID, "query=", req.query.restaurantId);
     
     if (!restaurantId) {
       return res.status(400).json({ 
         success: false,
-        message: "restaurantId is required" 
+        message: "restaurantId is required. Set RESTAURANT_ID in env or provide in query parameter." 
       });
     }
 

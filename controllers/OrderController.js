@@ -1,9 +1,20 @@
 const Order = require("../model/Order");
 const Customer = require("../model/Customer");
 const Delivery = require("../model/Delivery");
+const mongoose = require('mongoose');
 
 exports.createOrder = async (req, res) => {
   try {
+    // LOG REQUEST BODY FIRST to see what we're receiving
+    console.log("═══════════════════════════════════════════════════════════");
+    console.log("📥📥📥 INCOMING REQUEST - FULL BODY 📥📥📥");
+    console.log("═══════════════════════════════════════════════════════════");
+    console.log("🔍 Request Body Keys:", Object.keys(req.body));
+    console.log("🔍 Request Body 'from' field:", req.body.from);
+    console.log("🔍 Request Body 'from' type:", typeof req.body.from);
+    console.log("🔍 Request Body 'from' === 'delivery':", req.body.from === 'delivery');
+    console.log("🔍 Full request body:", JSON.stringify(req.body, null, 2));
+    console.log("═══════════════════════════════════════════════════════════");
     
     const {
       customerId,
@@ -15,6 +26,8 @@ exports.createOrder = async (req, res) => {
       userId,
       tableNumber,
       customerName,
+      customerAddress: bodyCustomerAddress,
+      from: fromRequestBody, // Extract 'from' from request body
       orderType,
       tax,
       taxAmount,
@@ -28,6 +41,29 @@ exports.createOrder = async (req, res) => {
       kotGenerated,
       paymentStatus,
     } = req.body;
+    
+    // CRITICAL: Set 'from' field - EXACTLY as received from request body
+    // For ecommerce orders, this MUST be 'delivery'
+    let from = fromRequestBody;
+    
+    // If 'from' is not provided, default to 'system'
+    if (!from) {
+      from = 'system';
+      console.log("⚠️ WARNING: 'from' field not found in request body, defaulting to 'system'");
+    } else {
+      // Normalize: trim and convert to string
+      from = from.toString().trim();
+      console.log("✅ 'from' field found in request body:", from);
+    }
+    
+    console.log("═══════════════════════════════════════════════════════════");
+    console.log("📋 'FROM' FIELD PROCESSING:");
+    console.log("   🔹 fromRequestBody (raw from req.body):", fromRequestBody);
+    console.log("   🔹 from (processed):", from);
+    console.log("   🔹 from type:", typeof from);
+    console.log("   🔹 from === 'delivery':", from === 'delivery');
+    console.log("   🔹 from.toLowerCase() === 'delivery':", from.toLowerCase() === 'delivery');
+    console.log("═══════════════════════════════════════════════════════════");
 
     // Enhanced validation
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -37,10 +73,30 @@ exports.createOrder = async (req, res) => {
       });
     }
 
-    if (!restaurantId && !req.user) {
+    // Check if restaurantId is available from any source
+    // 🔥 NOTE: process.env values are loaded at server startup
+    // If you change RESTAURANT_ID in .env file, you need to RESTART the backend server
+    // The new value will be available immediately after server restart
+    const getRestaurantIdFromEnv = () => {
+      return process.env.RESTAURANT_ID || process.env.RESTAURENT_ID;
+    };
+    const envRestaurantId = getRestaurantIdFromEnv();
+    // Filter out empty strings - treat empty string as undefined
+    const bodyRestaurantId = (restaurantId && restaurantId.trim() !== '') ? restaurantId : undefined;
+    const userRestaurantId = req.userId;
+    
+    console.log('🔍 Restaurant ID resolution (Backend):', {
+      envRestaurantId: envRestaurantId || 'NOT SET',
+      bodyRestaurantId: bodyRestaurantId || 'NOT PROVIDED',
+      userRestaurantId: userRestaurantId || 'NOT PROVIDED',
+      originalBodyRestaurantId: restaurantId,
+      note: 'Priority: body.restaurantId (FIRST - from localStorage) > env RESTAURANT_ID (fallback) > req.userId'
+    });
+    
+    if (!bodyRestaurantId && !envRestaurantId && !userRestaurantId) {
       return res.status(400).json({
         success: false,
-        message: "Restaurant ID is required"
+        message: "Restaurant ID is required. Set RESTAURANT_ID in env, provide in request body (from localStorage), or authenticate."
       });
     }
 
@@ -51,11 +107,39 @@ exports.createOrder = async (req, res) => {
       });
     }
 
-    // Use restaurantId from request or from authenticated user
-    const finalRestaurantId = restaurantId || req.userId;
-    const finalUserId = userId || req.userId;
+    // 🔥 CRITICAL FIX: Priority - body.restaurantId (FIRST) > env RESTAURANT_ID (fallback) > req.userId
+    // अगर localStorage में restaurantId है, तो उसे use करेंगे (body में आती है)
+    // अगर localStorage में restaurantId नहीं है, तो backend env RESTAURANT_ID use होगी
+    const finalRestaurantId = bodyRestaurantId || envRestaurantId || userRestaurantId;
+    // For public routes, if userId is not provided, use restaurantId as userId (same restaurant owner)
+    // This allows public orders to work without authentication
+    const finalUserId = userId || req.userId || finalRestaurantId;
+    
+    // Validate finalRestaurantId is not empty
+    if (!finalRestaurantId || (typeof finalRestaurantId === 'string' && finalRestaurantId.trim() === '')) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid Restaurant ID. Please set RESTAURANT_ID in backend .env file."
+      });
+    }
+    
+    // Validate finalUserId is not empty (should always have a value now)
+    if (!finalUserId || (typeof finalUserId === 'string' && finalUserId.trim() === '')) {
+      return res.status(400).json({
+        success: false,
+        message: "User ID is required. Please authenticate or set RESTAURANT_ID in backend .env file."
+      });
+    }
 
-    console.log("Final restaurantId:", finalRestaurantId);
+    console.log("🔍 Creating order with restaurantId:", finalRestaurantId);
+    console.log("🔍 Source: RESTAURANT_ID=", process.env.RESTAURANT_ID, "RESTAURENT_ID=", process.env.RESTAURENT_ID, "body=", restaurantId, "user=", req.userId);
+    console.log("🔍 Final restaurantId:", finalRestaurantId);
+    console.log("🔍 Final restaurantId source:", bodyRestaurantId && finalRestaurantId === bodyRestaurantId ? 'body (localStorage from frontend) - FIRST PRIORITY ✅' : (envRestaurantId && finalRestaurantId === envRestaurantId ? 'env RESTAURANT_ID (fallback)' : 'req.userId'));
+    if (bodyRestaurantId && finalRestaurantId === bodyRestaurantId) {
+      console.log("🔍✅✅✅ LOCALSTORAGE RESTAURANTID IS BEING USED (FIRST PRIORITY)");
+    } else if (envRestaurantId && finalRestaurantId === envRestaurantId) {
+      console.log("🔍✅✅✅ ENV RESTAURANT_ID IS BEING USED (FALLBACK - localStorage में नहीं थी)");
+    }
     console.log("Final userId:", finalUserId);
 
     // Validate status enum values
@@ -87,7 +171,35 @@ exports.createOrder = async (req, res) => {
       userId: finalUserId,
       tableNumber: tableNumber || "Table-1", // Default table if not provided
       subtotal: subtotal || 0,
+      // NOTE: 'from' field will be set explicitly later to ensure it's correct
     };
+    
+    // CRITICAL: Set 'from' field explicitly - MUST be set correctly for ecommerce orders
+    // Check if 'from' is 'delivery' (case-insensitive)
+    const fromNormalized = from ? from.toString().trim().toLowerCase() : '';
+    const isDelivery = fromNormalized === 'delivery';
+    
+    if (isDelivery) {
+      orderData.from = 'delivery'; // Explicitly set to 'delivery' for ecommerce
+      console.log("✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅");
+      console.log("✅✅✅ ECOMMERCE ORDER DETECTED: 'from' field set to 'delivery' ✅✅✅");
+      console.log("✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅✅");
+    } else if (from && from.toString().trim()) {
+      orderData.from = from.toString().trim();
+      console.log("✅ 'from' field set to:", orderData.from);
+    } else {
+      orderData.from = 'system';
+      console.log("✅ 'from' field set to default 'system'");
+    }
+    
+    console.log("═══════════════════════════════════════════════════════════");
+    console.log("📋 'FROM' FIELD SET IN orderData:");
+    console.log("   🔹 from (processed):", from);
+    console.log("   🔹 fromNormalized:", fromNormalized);
+    console.log("   🔹 isDelivery:", isDelivery);
+    console.log("   🔹 orderData.from:", orderData.from);
+    console.log("   🔹 Expected for ecommerce: 'delivery'");
+    console.log("═══════════════════════════════════════════════════════════");
     
     // Save discount fields (but don't apply to totalAmount)
     // Convert to numbers to ensure proper type
@@ -113,43 +225,131 @@ exports.createOrder = async (req, res) => {
     });
     
     orderData.customerName = customerName || "Walk-in Customer";
+    
+    // Set customerAddress from request body if provided, otherwise will be populated from customer
+    if (bodyCustomerAddress && bodyCustomerAddress.trim()) {
+      orderData.customerAddress = bodyCustomerAddress.trim();
+    }
 
     let finalCustomerId = null;
 
     if (customerId) {
       finalCustomerId = customerId;
       orderData.customerId = customerId;
-      // Fetch customer address if customerId is provided
-      const customer = await Customer.findById(customerId);
-      if (customer && customer.address) {
-        orderData.customerAddress = customer.address;
+      // Fetch customer address if customerId is provided and address not already set from body
+      if (!orderData.customerAddress) {
+        const customer = await Customer.findById(customerId);
+        if (customer && customer.address) {
+          orderData.customerAddress = customer.address;
+        }
       }
     } else if (customerName) {
       // Try to find existing customer by name
+      // Use finalRestaurantId instead of restaurantId from body (which might be empty)
       let customer = await Customer.findOne({
         name: customerName,
-        restaurantId: restaurantId
+        restaurantId: finalRestaurantId
       });
 
       if (!customer && customerName !== 'Walk-in Customer') {
+        // Only create customer if restaurantId is valid and not empty
+        if (!finalRestaurantId || (typeof finalRestaurantId === 'string' && finalRestaurantId.trim() === '')) {
+          console.error('⚠️ Cannot create customer: restaurantId is empty or invalid');
+          console.error('   finalRestaurantId:', finalRestaurantId);
+          return res.status(400).json({
+            success: false,
+            message: "Restaurant ID is required to create customer. Please set RESTAURANT_ID in backend .env file."
+          });
+        }
+        
+        // Validate that restaurantId is a valid MongoDB ObjectId format
+        if (!mongoose.Types.ObjectId.isValid(finalRestaurantId)) {
+          console.error('⚠️ Cannot create customer: restaurantId is not a valid ObjectId');
+          console.error('   finalRestaurantId:', finalRestaurantId, 'Type:', typeof finalRestaurantId);
+          return res.status(400).json({
+            success: false,
+            message: `Invalid Restaurant ID format: "${finalRestaurantId}". It must be a valid MongoDB ObjectId.`
+          });
+        }
+        
+        console.log('✅ Creating new customer with restaurantId:', finalRestaurantId);
         customer = new Customer({
           name: customerName,
-          restaurantId: restaurantId,
+          restaurantId: finalRestaurantId,
+          address: bodyCustomerAddress && bodyCustomerAddress.trim() ? bodyCustomerAddress.trim() : undefined,
         });
         await customer.save();
+        console.log('✅ Customer created successfully:', customer._id);
       }
 
       if (customer) {
         finalCustomerId = customer._id;
         orderData.customerId = customer._id;
-        if (customer.address) {
+        // Use address from request body if provided, otherwise use customer's existing address
+        if (bodyCustomerAddress && bodyCustomerAddress.trim()) {
+          orderData.customerAddress = bodyCustomerAddress.trim();
+          // Also update customer's address if it was provided
+          if (!customer.address || customer.address !== bodyCustomerAddress.trim()) {
+            customer.address = bodyCustomerAddress.trim();
+            await customer.save();
+          }
+        } else if (customer.address && !orderData.customerAddress) {
           orderData.customerAddress = customer.address;
         }
       }
     }
 
-    // Check if there's an existing order (not completed/cancelled) for the same customer AND same table number
-    if (finalCustomerId && tableNumber) {
+    // CRITICAL: Check if this is an ecommerce order (from: 'delivery')
+    // Ecommerce orders MUST ALWAYS create a new order, NEVER merge with existing orders
+    // Check both the request body 'from' and orderData.from to ensure we catch it
+    const fromRequest = from ? from.toString().trim().toLowerCase() : '';
+    const fromOrderData = orderData.from ? orderData.from.toString().trim().toLowerCase() : '';
+    const isEcommerceOrder = fromRequest === 'delivery' || fromOrderData === 'delivery';
+    
+    console.log("═══════════════════════════════════════════════════════════");
+    console.log("📋 ECOMMERCE ORDER DETECTION:");
+    console.log("   🔹 from (request):", from, "→ normalized:", fromRequest);
+    console.log("   🔹 orderData.from:", orderData.from, "→ normalized:", fromOrderData);
+    console.log("   🔹 isEcommerceOrder:", isEcommerceOrder);
+    console.log("═══════════════════════════════════════════════════════════");
+    
+    console.log("═══════════════════════════════════════════════════════════");
+    console.log("📋 ORDER CREATION CHECK:");
+    console.log("   🔹 from field (raw):", from);
+    console.log("   🔹 from field (type):", typeof from);
+    console.log("   🔹 from field (trimmed):", from ? from.toString().trim() : 'undefined');
+    console.log("   🔹 isEcommerceOrder:", isEcommerceOrder);
+    console.log("   🔹 finalCustomerId:", finalCustomerId);
+    console.log("   🔹 tableNumber:", tableNumber);
+    console.log("═══════════════════════════════════════════════════════════");
+    
+    if (isEcommerceOrder) {
+      console.log("🛒 ✅ ECOMMERCE ORDER DETECTED (from: 'delivery')");
+      console.log("🚫 EXISTING ORDER CHECK WILL BE SKIPPED");
+      console.log("✅ WILL ALWAYS CREATE A BRAND NEW ORDER");
+      console.log("❌ WILL NEVER MERGE WITH EXISTING ORDERS");
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    } else {
+      console.log("🏪 POS/KOT ORDER DETECTED (from: '" + (from || 'system') + "')");
+      console.log("✅ Will check for existing orders and merge if found");
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    }
+    
+    // ============================================================================
+    // ABSOLUTE SAFEGUARD: If ecommerce order, NEVER check for existing orders
+    // ============================================================================
+    // Use explicit boolean to prevent any accidental execution
+    const shouldCheckExistingOrder = !isEcommerceOrder && finalCustomerId && tableNumber;
+    
+    if (isEcommerceOrder) {
+      console.log("🔒🔒🔒 SAFEGUARD ACTIVATED: Ecommerce order detected - existing order check BLOCKED 🔒🔒🔒");
+    }
+    
+    // CRITICAL: For ecommerce orders (from: 'delivery'), COMPLETELY SKIP existing order check
+    // This ensures EVERY ecommerce order creates a NEW order, NEVER merges with existing
+    // Only check for existing orders if this is NOT an ecommerce order
+    if (shouldCheckExistingOrder) {
+      console.log("🏪 POS/KOT ORDER DETECTED - Checking for existing order to merge...");
       const existingPendingOrder = await Order.findOne({
         customerId: finalCustomerId,
         restaurantId: finalRestaurantId,
@@ -457,6 +657,20 @@ exports.createOrder = async (req, res) => {
           order: updatedOrder
         });
       }
+    } else {
+      // This block executes when:
+      // 1. isEcommerceOrder is true (ecommerce order) - existing check was skipped
+      // 2. OR isEcommerceOrder is false but no existing order found or conditions not met
+      if (isEcommerceOrder) {
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        console.log("🛒 ECOMMERCE ORDER FLOW:");
+        console.log("   ✅ Existing order check was SKIPPED (as intended)");
+        console.log("   ✅ Proceeding to create BRAND NEW order");
+        console.log("   ❌ NO MERGING will occur - this is a separate order");
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      } else {
+        console.log("✅ No existing order found or conditions not met - proceeding to create NEW order");
+      }
     }
 
     // Process items array to ensure size field is properly set
@@ -484,7 +698,29 @@ exports.createOrder = async (req, res) => {
     if (subtotal !== undefined) orderData.subtotal = Number(subtotal) || 0;
     if (kotGenerated !== undefined) orderData.kotGenerated = kotGenerated;
     if (paymentStatus) orderData.paymentStatus = paymentStatus;
+    
+    // CRITICAL: Ensure 'from' field is explicitly set (don't rely on model default)
+    // This is especially important for ecommerce orders
+    if (from && from.toString().trim()) {
+      orderData.from = from.toString().trim();
+      console.log("✅ 'from' field explicitly set in orderData:", orderData.from);
+    } else if (isEcommerceOrder) {
+      // Safety check: If we detected ecommerce order but 'from' is missing, set it explicitly
+      orderData.from = 'delivery';
+      console.log("⚠️ 'from' field was missing but ecommerce order detected - setting to 'delivery'");
+    } else {
+      orderData.from = 'system';
+      console.log("✅ 'from' field set to default 'system'");
+    }
 
+    console.log("═══════════════════════════════════════════════════════════");
+    if (isEcommerceOrder) {
+      console.log("🛒 CREATING NEW ECOMMERCE ORDER (from: 'delivery')");
+      console.log("   ✅ This will ALWAYS create a NEW order, never merge with existing");
+    } else {
+      console.log("🏪 CREATING NEW ORDER (from: '" + (from || 'system') + "')");
+    }
+    console.log("═══════════════════════════════════════════════════════════");
     console.log("Final order data before saving:", JSON.stringify(orderData, null, 2));
     console.log("💾 Discount fields in orderData before creating Order:", {
       discountAmount: orderData.discountAmount,
@@ -493,8 +729,58 @@ exports.createOrder = async (req, res) => {
       discount: orderData.discount
     });
 
+    // FINAL VERIFICATION: Before creating Order instance, ensure 'from' field is correct
+    console.log("═══════════════════════════════════════════════════════════");
+    console.log("🔍 PRE-INSTANCE VERIFICATION:");
+    console.log("   🔹 orderData.from:", orderData.from);
+    console.log("   🔹 isEcommerceOrder:", isEcommerceOrder);
+    console.log("   🔹 Request body 'from':", from);
+    if (isEcommerceOrder) {
+      console.log("   ✅ Ecommerce order - 'from' MUST be 'delivery'");
+      // Force set to 'delivery' if ecommerce order
+      if (orderData.from !== 'delivery') {
+        console.log("   ⚠️ WARNING: orderData.from is not 'delivery' - correcting it now!");
+        orderData.from = 'delivery';
+      }
+    }
+    console.log("═══════════════════════════════════════════════════════════");
+    
     const order = new Order(orderData);
     console.log("Order instance created, attempting to save...");
+    
+    // CRITICAL: Verify and FORCE SET 'from' field in Order instance BEFORE saving
+    console.log("═══════════════════════════════════════════════════════════");
+    console.log("🔍 ORDER INSTANCE 'FROM' FIELD VERIFICATION:");
+    console.log("   🔹 order.from (immediately after new Order()):", order.from);
+    console.log("   🔹 orderData.from:", orderData.from);
+    console.log("   🔹 isEcommerceOrder:", isEcommerceOrder);
+    console.log("═══════════════════════════════════════════════════════════");
+    
+    // FORCE SET: If ecommerce order OR isDelivery, ensure 'from' is 'delivery' in Order instance
+    // Use both isEcommerceOrder AND isDelivery checks for maximum safety
+    if (isEcommerceOrder || isDelivery) {
+      order.from = 'delivery';
+      console.log("✅✅✅ FORCED: order.from = 'delivery' for ecommerce order ✅✅✅");
+      console.log("   🔹 isEcommerceOrder:", isEcommerceOrder);
+      console.log("   🔹 isDelivery:", isDelivery);
+      console.log("   🔹 order.from after force set:", order.from);
+    } else if (!order.from) {
+      order.from = orderData.from || 'system';
+      console.log("✅ Set order.from to:", order.from);
+    }
+    
+    // Final verification before save - use BOTH checks
+    console.log("🔍 Final check - order.from before save:", order.from);
+    if ((isEcommerceOrder || isDelivery) && order.from !== 'delivery') {
+      console.error("❌❌❌ CRITICAL ERROR: Order instance 'from' is STILL NOT 'delivery'!");
+      console.error("   🔹 isEcommerceOrder:", isEcommerceOrder);
+      console.error("   🔹 isDelivery:", isDelivery);
+      console.error("   🔹 Forcing again...");
+      order.from = 'delivery';
+      console.log("   ✅ Forced order.from = 'delivery'");
+    }
+    console.log("═══════════════════════════════════════════════════════════");
+    
     console.log("💾 Discount fields in order instance:", {
       discountAmount: order.discountAmount,
       discountPercentage: order.discountPercentage,
@@ -502,14 +788,69 @@ exports.createOrder = async (req, res) => {
       discount: order.discount
     });
     
+    // FINAL CHECK: Before saving, ensure 'from' field is correct
+    console.log("═══════════════════════════════════════════════════════════");
+    console.log("🔍 FINAL PRE-SAVE CHECK:");
+    console.log("   🔹 order.from (before save):", order.from);
+    console.log("   🔹 orderData.from:", orderData.from);
+    console.log("   🔹 isEcommerceOrder:", isEcommerceOrder);
+    console.log("   🔹 isDelivery:", isDelivery);
+    
+    // ABSOLUTE FINAL FORCE: If ecommerce order, force 'from' to 'delivery'
+    if (isEcommerceOrder || isDelivery) {
+      order.from = 'delivery';
+      orderData.from = 'delivery';
+      console.log("🔒🔒🔒 ABSOLUTE FINAL FORCE: order.from = 'delivery' 🔒🔒🔒");
+    }
+    console.log("   🔹 order.from (after final force):", order.from);
+    console.log("═══════════════════════════════════════════════════════════");
+    
     const savedOrder = await order.save();
-    console.log("Order saved successfully:", savedOrder._id);
+    console.log("═══════════════════════════════════════════════════════════");
+    if (isEcommerceOrder || isDelivery) {
+      console.log("🛒 ✅ NEW ECOMMERCE ORDER CREATED SUCCESSFULLY!");
+      console.log("   📦 Order ID:", savedOrder._id);
+      console.log("   📋 Order ID (readable):", savedOrder.orderId);
+      console.log("   🔹 from (SAVED IN DB):", savedOrder.from);
+      console.log("   🔹 from === 'delivery':", savedOrder.from === 'delivery' ? '✅✅✅ CORRECT ✅✅✅' : '❌❌❌ WRONG! ❌❌❌');
+      console.log("   📊 Items count:", savedOrder.items.length);
+      console.log("   💰 Total Amount:", savedOrder.totalAmount);
+      console.log("   ✅ This is a BRAND NEW order, not merged with any existing order");
+      
+      // CRITICAL VERIFICATION: Check if 'from' field was saved correctly
+      if (savedOrder.from !== 'delivery') {
+        console.error("═══════════════════════════════════════════════════════════");
+        console.error("❌❌❌❌❌ CRITICAL ERROR ❌❌❌❌❌");
+        console.error("'from' field is NOT 'delivery' in saved order!");
+        console.error("   🔹 Expected: 'delivery'");
+        console.error("   🔹 Actual:", savedOrder.from);
+        console.error("   🔹 This should NOT happen for ecommerce orders!");
+        console.error("═══════════════════════════════════════════════════════════");
+        
+        // Try to update it directly
+        try {
+          savedOrder.from = 'delivery';
+          await savedOrder.save();
+          console.log("✅✅✅ Fixed: Updated 'from' field to 'delivery' after save");
+        } catch (updateError) {
+          console.error("❌ Failed to update 'from' field:", updateError);
+        }
+      } else {
+        console.log("✅✅✅ SUCCESS: 'from' field is correctly set to 'delivery' in database! ✅✅✅");
+      }
+    } else {
+      console.log("✅ NEW ORDER CREATED SUCCESSFULLY!");
+      console.log("   📦 Order ID:", savedOrder._id);
+      console.log("   📋 Order ID (readable):", savedOrder.orderId);
+      console.log("   🔹 from:", savedOrder.from);
+    }
     console.log("💾 Discount fields in saved order:", {
       discountAmount: savedOrder.discountAmount,
       discountPercentage: savedOrder.discountPercentage,
       discountType: savedOrder.discountType,
       discount: savedOrder.discount
     });
+    console.log("═══════════════════════════════════════════════════════════");
 
     await order.populate("customerId", "name email");
     if (order.deliveryId) {
@@ -615,13 +956,23 @@ exports.getAllOrders = async (req, res) => {
     console.log("=== FETCHING ALL ORDERS ===");
     console.log("User from auth middleware:", req.user);
     
-    // 🔥 ALWAYS use req.userId (which is user.restaurantId from user collection)
-    const restaurantId = req.userId;
+    // 🔥 NOTE: .env RESTAURANT_ID is NOT used in order fetch routes (as per requirement)
+    // Authorized route - req.userId से restaurantId fetch करते हैं (authMiddleware से आती है)
+    // Priority: req.userId (from auth middleware) > query.restaurantId
+    const restaurantId = req.userId || req.query.restaurantId;
     
-    let query = {};
-    if (restaurantId) {
-      query.restaurantId = restaurantId;
+    if (!restaurantId) {
+      return res.status(400).json({
+        success: false,
+        message: "Restaurant ID is required. Please authenticate or provide restaurantId in query parameter."
+      });
     }
+    
+    console.log("🔍 Fetching orders with restaurantId:", restaurantId);
+    console.log("🔍 Source: req.userId=", req.userId, "query.restaurantId=", req.query.restaurantId);
+    console.log("🔍✅✅✅ .env RESTAURANT_ID IS NOT USED IN ORDER FETCH ROUTES (as per requirement)");
+    
+    let query = { restaurantId };
     
     console.log("Query filter:", query);
     
@@ -650,6 +1001,59 @@ exports.getAllOrders = async (req, res) => {
     });
   } catch (err) {
     console.error("Error fetching orders:", err);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: err.message
+    });
+  }
+};
+
+// Public API to get orders by restaurantId (for customer menu)
+exports.getPublicOrders = async (req, res) => {
+  try {
+    console.log("=== FETCHING PUBLIC ORDERS ===");
+    
+    // 🔥 NOTE: .env RESTAURANT_ID is NOT used in order fetch routes (as per requirement)
+    // Public route - query.restaurantId से restaurantId fetch करते हैं
+    // Priority: query.restaurantId only
+    const restaurantId = req.query.restaurantId;
+    
+    console.log("🔍 Fetching public orders with restaurantId:", restaurantId);
+    console.log("🔍 Source: query.restaurantId=", req.query.restaurantId);
+    console.log("🔍✅✅✅ .env RESTAURANT_ID IS NOT USED IN ORDER FETCH ROUTES (as per requirement)");
+    
+    if (!restaurantId) {
+      return res.status(400).json({
+        success: false,
+        message: "restaurantId is required. Please provide restaurantId in query parameter."
+      });
+    }
+    
+    let query = { restaurantId };
+    
+    // Optional: Filter by status if provided
+    if (req.query.status) {
+      query.status = req.query.status;
+    }
+    
+    console.log("Query filter:", query);
+    
+    const orders = await Order.find(query)
+      .populate("customerId", "name email address")
+      .populate("deliveryId", "deliveryPerson status")
+      .sort({ createdAt: -1 });
+    
+    console.log(`Found ${orders.length} public orders`);
+    
+    res.json({
+      success: true,
+      data: orders,
+      orders: orders,
+      count: orders.length
+    });
+  } catch (err) {
+    console.error("Error fetching public orders:", err);
     res.status(500).json({
       success: false,
       message: "Server error",

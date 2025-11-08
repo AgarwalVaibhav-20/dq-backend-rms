@@ -52,4 +52,53 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
-module.exports = { authMiddleware };
+// Optional auth middleware - allows routes to work with or without authentication
+// Priority: env RESTAURANT_ID > authenticated user > query params
+const optionalAuthMiddleware = async (req, res, next) => {
+  try {
+    // First try to get restaurantId from env
+    const getRestaurantIdFromEnv = () => {
+      return process.env.RESTAURANT_ID || process.env.RESTAURENT_ID;
+    };
+    const envRestaurantId = getRestaurantIdFromEnv();
+    
+    if (envRestaurantId) {
+      req.userId = envRestaurantId;
+      req.user = null;
+      req.actualUserId = null;
+      console.log('✅ Using RESTAURANT_ID from environment');
+      return next();
+    }
+
+    // If no env restaurantId, try to authenticate
+    const authHeader = req.headers["authorization"];
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.split(" ")[1];
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || "your_jwt_secret");
+        const user = await User.findById(decoded.id);
+        if (user) {
+          req.user = user;
+          req.userId = user.restaurantId;
+          req.actualUserId = user._id;
+          console.log('✅ Using restaurantId from authenticated user');
+          return next();
+        }
+      } catch (err) {
+        // If auth fails, continue without auth (for public routes)
+        console.log('⚠️ Auth failed, continuing without auth:', err.message);
+      }
+    }
+    
+    // Continue without auth (for public routes)
+    // req.userId and req.user will be undefined, which is OK for public routes
+    console.log('⚠️ No authentication or env RESTAURANT_ID, continuing as public route');
+    next();
+  } catch (err) {
+    console.error('Optional auth middleware error:', err);
+    // Don't block the request on error, continue as public route
+    next();
+  }
+};
+
+module.exports = { authMiddleware, optionalAuthMiddleware };

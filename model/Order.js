@@ -85,7 +85,7 @@ const orderSchema = new mongoose.Schema(
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true
+      required: false // Made optional to support public orders without authentication
     },
     tableNumber: {
       type: String,
@@ -100,6 +100,11 @@ const orderSchema = new mongoose.Schema(
     customerAddress: {
       type: String,
       default: '',
+      trim: true
+    },
+    from: {
+      type: String,
+      default: 'system',
       trim: true
     },
     orderType: {
@@ -202,6 +207,14 @@ orderSchema.pre("save", async function (next) {
     } catch (error) {
       console.error('Error populating customer address:', error);
     }
+  }
+  
+  // CRITICAL: Preserve 'from' field if it's set (especially for ecommerce orders)
+  // Don't override if it's already set to 'delivery' or any other value
+  if (this.from && this.from.toString().trim().toLowerCase() === 'delivery') {
+    // Explicitly preserve 'delivery' for ecommerce orders
+    this.from = 'delivery';
+    console.log("🔒 Order model pre-save: Preserving 'from' field as 'delivery' for ecommerce order");
   }
   
   next();

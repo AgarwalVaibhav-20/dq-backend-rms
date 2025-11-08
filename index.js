@@ -43,13 +43,21 @@ const shortcutRoute = require('./routes/keyboardshortcutRoute.js')
 const SpinAndWin = require('./routes/spinaandwinRoute.js')
 dotenv.config();
 
+// Helper function to get restaurant ID from env (supports both spellings)
+function getRestaurantIdFromEnv() {
+  // Check both spellings: RESTAURANT_ID (correct) and RESTAURENT_ID (typo)
+  return process.env.RESTAURANT_ID || process.env.RESTAURENT_ID;
+}
+
 const app = express();
 const PORT = process.env.PORT || 4000;
 
 // Middleware
 const allowedOrigins = [
   'https://dq-rms.vercel.app',
-  'http://localhost:3000' // Add your local frontend URL for development
+  'http://localhost:3000', // React default port
+  'http://localhost:5173', // Vite default port
+  'http://localhost:5174', // Vite alternate port
 ];
 
 const corsOptions = {
@@ -84,10 +92,31 @@ mongoose.connection.on("error", (err) => {
 mongoose.connection.on("disconnected", () => {
   console.log("⚠️ Mongoose disconnected");
 });
+
+// Log RESTAURANT_ID on server startup
+const restaurantIdFromEnv = getRestaurantIdFromEnv();
+console.log('═══════════════════════════════════════════════════════════');
+console.log('🚀 BACKEND SERVER STARTING...');
+console.log('═══════════════════════════════════════════════════════════');
+console.log('📋 ENVIRONMENT VARIABLES:');
+console.log('   🔹 RESTAURANT_ID (correct):', process.env.RESTAURANT_ID || '⚠️ NOT SET');
+console.log('   🔹 RESTAURENT_ID (typo):', process.env.RESTAURENT_ID || '⚠️ NOT SET');
+console.log('   🔹 FINAL RESTAURANT_ID:', restaurantIdFromEnv || '⚠️ NOT SET - Please set in .env file');
+console.log('   🔹 MONGO_URL:', process.env.MONGO_URL ? '✅ SET' : '⚠️ NOT SET');
+console.log('   🔹 PORT:', process.env.PORT || 4000);
+console.log('═══════════════════════════════════════════════════════════');
+
+// Export helper function for use in other files
+global.getRestaurantIdFromEnv = getRestaurantIdFromEnv;
+
 // Default route
 app.get("/", (req, res) => {
   res.send("Hello World");
 });
+
+// Public routes (must be registered BEFORE auth routes to avoid conflicts)
+const customLayoutRoute = require('./routes/customLayoutRoute');
+app.use("/", customLayoutRoute); // Public custom layout routes
 
 // Routes
 app.use("/", authRouter);

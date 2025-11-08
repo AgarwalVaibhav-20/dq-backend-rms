@@ -151,28 +151,82 @@ router.get('/categories', authMiddleware, async (req, res) => {
 // Public API to get categories by restaurantId (for customer menu)
 router.get('/public/categories', async (req, res) => {
   try {
-    const { restaurantId } = req.query;
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log('📂 PUBLIC CATEGORIES API CALLED');
+    console.log('═══════════════════════════════════════════════════════════');
     
-    console.log('🌐 Public Categories API - restaurantId:', restaurantId);
+    // Priority: env RESTAURANT_ID (supports both spellings) > query.restaurantId
+    const getRestaurantIdFromEnv = () => {
+      return process.env.RESTAURANT_ID || process.env.RESTAURENT_ID;
+    };
+    const envRestaurantId = getRestaurantIdFromEnv();
+    const queryRestaurantId = req.query.restaurantId;
+    
+    console.log('📋 RESTAURANT_ID SOURCES:');
+    console.log('   🔹 From ENV RESTAURANT_ID (correct):', process.env.RESTAURANT_ID || 'NOT SET');
+    console.log('   🔹 From ENV RESTAURENT_ID (typo):', process.env.RESTAURENT_ID || 'NOT SET');
+    console.log('   🔹 From ENV (final):', envRestaurantId || 'NOT SET');
+    console.log('   🔹 From query string:', queryRestaurantId || 'NOT PROVIDED');
+    console.log('   🔹 Request URL:', req.url);
+    console.log('   🔹 Full request query:', JSON.stringify(req.query));
+    
+    const restaurantId = envRestaurantId || queryRestaurantId;
+    
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('✅ FINAL RESTAURANT_ID BEING USED:', restaurantId);
+    console.log('   Type:', typeof restaurantId);
+    console.log('   Length:', restaurantId ? restaurantId.length : 0);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     
     if (!restaurantId) {
-      return res.status(400).json({ 
-        success: false,
-        message: 'restaurantId is required' 
-      });
+      console.warn('⚠️ ⚠️ ⚠️ NO RESTAURANT_ID FOUND! ⚠️ ⚠️ ⚠️');
+      console.warn('   Please set RESTAURANT_ID in backend .env file');
+      console.warn('   Returning empty categories array.');
+      return res.status(200).json({ success: true, data: [] }); // Return empty array instead of error
     }
 
+    console.log('🔍 MongoDB Query Filter:', JSON.stringify({ restaurantId, isDeleted: false }, null, 2));
+    console.log('🔍 Searching in Category collection...');
+    
     const categories = await Category.find({ 
       restaurantId,
       isDeleted: false 
     });
     
-    console.log('✅ Public categories found:', categories.length);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('✅ CATEGORIES FOUND:', categories.length);
     
-    res.status(200).json({ data: categories });
+    if (categories.length > 0) {
+      console.log('📋 CATEGORIES LIST:');
+      categories.forEach((cat, index) => {
+        console.log(`   ${index + 1}. ${cat.categoryName} (ID: ${cat._id})`);
+      });
+    } else {
+      console.log('⚠️ NO CATEGORIES FOUND!');
+      console.log('   Possible reasons:');
+      console.log('   1. No categories exist for restaurantId:', restaurantId);
+      console.log('   2. All categories are marked as deleted (isDeleted: true)');
+      console.log('   3. RestaurantId mismatch in database');
+      
+      // Check if any categories exist at all
+      const allCategoriesCount = await Category.countDocuments({});
+      console.log('   📊 Total categories in Category collection:', allCategoriesCount);
+      
+      if (allCategoriesCount > 0) {
+        // Sample a few categories to see their restaurantIds
+        const sampleCategories = await Category.find({}).limit(3).select('categoryName restaurantId isDeleted');
+        console.log('   📋 Sample categories from database:');
+        sampleCategories.forEach((cat, index) => {
+          console.log(`      ${index + 1}. ${cat.categoryName} - RestaurantID: ${cat.restaurantId} - Deleted: ${cat.isDeleted}`);
+        });
+      }
+    }
+    console.log('═══════════════════════════════════════════════════════════');
+    
+    res.status(200).json({ success: true, data: categories });
   } catch (err) {
     console.error('❌ Public Categories API Error:', err);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error', error: err.message });
   }
 });
 

@@ -310,29 +310,96 @@ exports.getMenuItems = async (req, res) => {
 // Public API to get menu items by restaurantId (for customer menu)
 exports.getPublicMenuItems = async (req, res) => {
   try {
-    const { restaurantId } = req.query;
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log('🍽️  PUBLIC MENU API CALLED');
+    console.log('═══════════════════════════════════════════════════════════');
     
-    console.log("🌐 Public Menu API - restaurantId:", restaurantId);
+    // Priority: env RESTAURANT_ID (supports both spellings) > query.restaurantId
+    const getRestaurantIdFromEnv = () => {
+      return process.env.RESTAURANT_ID || process.env.RESTAURENT_ID;
+    };
+    const envRestaurantId = getRestaurantIdFromEnv();
+    const queryRestaurantId = req.query.restaurantId;
+    
+    console.log('📋 RESTAURANT_ID SOURCES:');
+    console.log('   🔹 From ENV RESTAURANT_ID (correct):', process.env.RESTAURANT_ID || 'NOT SET');
+    console.log('   🔹 From ENV RESTAURENT_ID (typo):', process.env.RESTAURENT_ID || 'NOT SET');
+    console.log('   🔹 From ENV (final):', envRestaurantId || 'NOT SET');
+    console.log('   🔹 From query string:', queryRestaurantId || 'NOT PROVIDED');
+    console.log('   🔹 Request URL:', req.url);
+    console.log('   🔹 Full request query:', JSON.stringify(req.query));
+    
+    const restaurantId = envRestaurantId || queryRestaurantId;
+    
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('✅ FINAL RESTAURANT_ID BEING USED:', restaurantId);
+    console.log('   Type:', typeof restaurantId);
+    console.log('   Length:', restaurantId ? restaurantId.length : 0);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     
     if (!restaurantId) {
-      return res.status(400).json({ 
-        message: "restaurantId is required" 
-      });
+      console.warn('⚠️ ⚠️ ⚠️ NO RESTAURANT_ID FOUND! ⚠️ ⚠️ ⚠️');
+      console.warn('   Please set RESTAURANT_ID in backend .env file');
+      console.warn('   Returning empty menu array.');
+      return res.status(200).json([]); // Return empty array instead of error
     }
 
-    const menuItems = await Menu.find({ 
-      restaurantId,
+    // Convert restaurantId to string for comparison (MongoDB ObjectId can be string or ObjectId)
+    const query = { 
       status: 1 // Only active items
-    })
+    };
+    
+    // Handle both string and ObjectId restaurantId
+    if (restaurantId) {
+      query.restaurantId = restaurantId;
+    }
+
+    console.log('🔍 MongoDB Query Filter:', JSON.stringify(query, null, 2));
+    console.log('🔍 Searching in Menu collection...');
+    
+    const menuItems = await Menu.find(query)
       .populate("categoryId", "categoryName")
       .sort({ createdAt: -1 });
 
-    console.log("✅ Public menu items found:", menuItems.length);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('✅ MENU ITEMS FOUND:', menuItems.length);
+    
+    if (menuItems.length > 0) {
+      console.log('📋 SAMPLE MENU ITEMS (first 3):');
+      menuItems.slice(0, 3).forEach((item, index) => {
+        console.log(`   ${index + 1}. ${item.itemName}`);
+        console.log(`      ID: ${item._id}`);
+        console.log(`      RestaurantID: ${item.restaurantId}`);
+        console.log(`      Status: ${item.status}`);
+        console.log(`      Category: ${item.categoryId?.categoryName || 'N/A'}`);
+      });
+    } else {
+      console.log('⚠️ NO MENU ITEMS FOUND!');
+      console.log('   Possible reasons:');
+      console.log('   1. No items exist for restaurantId:', restaurantId);
+      console.log('   2. All items have status != 1 (not active)');
+      console.log('   3. RestaurantId mismatch in database');
+      
+      // Check if any items exist at all
+      const allItemsCount = await Menu.countDocuments({});
+      console.log('   📊 Total items in Menu collection:', allItemsCount);
+      
+      if (allItemsCount > 0) {
+        // Sample a few items to see their restaurantIds
+        const sampleItems = await Menu.find({}).limit(3).select('itemName restaurantId status');
+        console.log('   📋 Sample items from database:');
+        sampleItems.forEach((item, index) => {
+          console.log(`      ${index + 1}. ${item.itemName} - RestaurantID: ${item.restaurantId} - Status: ${item.status}`);
+        });
+      }
+    }
+    console.log('═══════════════════════════════════════════════════════════');
     
     res.status(200).json(menuItems);
   } catch (error) {
-    console.error("Error fetching public menu items:", error);
+    console.error("❌ Error fetching public menu items:", error);
     res.status(500).json({
+      success: false,
       message: "Failed to fetch menu items",
       error: error.message
     });

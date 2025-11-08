@@ -7,14 +7,15 @@ router.post("/customer/add", authMiddleware, CustomerController.createCustomer);
 // Public API for customer creation (no auth required - for customer menu orders)
 router.post("/customer/public/add", CustomerController.createCustomer);
 router.get("/customer/all", authMiddleware, CustomerController.getAllCustomersForReservation);
+// ✅ Customer report - MUST be before parameterized routes
+router.get('/customer/report', authMiddleware, CustomerController.getCustomerReport);
 router.get("/customer/type/:restaurantId/:customerType", authMiddleware, CustomerController.getCustomersByType);
-router.get("/customer/:restaurantId", authMiddleware, CustomerController.getAllCustomers);
-router.get("/customer/:id", authMiddleware, CustomerController.getCustomerById);
 router.post('/customer/admin-reward-points/add/:id', authMiddleware, CustomerController.addAdminRewardPoints);
 router.put("/customer/update/:id", authMiddleware, CustomerController.updateCustomer);
 router.put("/customer/frequency/:id", authMiddleware, CustomerController.updateCustomerFrequency);
-// Customer report
-router.get('/customer/report', authMiddleware, CustomerController.getCustomerReport);
+// ⚠️ Parameterized routes should be at the end
+router.get("/customer/:restaurantId", authMiddleware, CustomerController.getAllCustomers);
+router.get("/customer/:id", authMiddleware, CustomerController.getCustomerById);
 
 router.delete("/customer/delete/:id", authMiddleware, CustomerController.deleteCustomer);
 // Add these routes

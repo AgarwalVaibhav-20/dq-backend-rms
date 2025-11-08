@@ -1,27 +1,17 @@
 const express = require("express");
 const router = express.Router();
 const reservationController = require("../controllers/ReservationController");
-const {authMiddleware} = require("../middleware/authMiddleware");
+const {authMiddleware, optionalAuthMiddleware} = require("../middleware/authMiddleware");
 
-// Create reservation
-router.post("/add", authMiddleware, reservationController.createReservation);
-
-router.get("/all", authMiddleware, reservationController.getAllReservations);
+// IMPORTANT: Specific routes MUST come BEFORE parameterized routes (/:id)
+// Public routes - work with env RESTAURANT_ID or query params
+router.get("/available-slots", optionalAuthMiddleware, reservationController.getAvailableTimeSlots); // Must be before /:id
+router.get("/all", optionalAuthMiddleware, reservationController.getAllReservations);
 router.get("/debug/all", authMiddleware, reservationController.getAllReservations);
+router.post("/add", optionalAuthMiddleware, reservationController.createReservation);
 
-// Debug route to get all reservations
-// router.get("/debug/all", reservationController.getAllReservationsDebug);
-
-// Get reservations by restaurant
-// router.get("/restaurant/:restaurantId", authMiddleware, reservationController.getReservationsByRestaurant);
-
-// Get reservations by user
-// router.get("/user/:userId", authMiddleware, reservationController.getReservationsByUser);
-
-// Update reservation
-router.put("/:id", authMiddleware, reservationController.updateReservation);
-
-// Cancel reservation
-router.delete("/:id", authMiddleware, reservationController.cancelReservation);
+// Parameterized routes (must come AFTER specific routes)
+router.put("/:id", optionalAuthMiddleware, reservationController.updateReservation);
+router.delete("/:id", optionalAuthMiddleware, reservationController.cancelReservation);
 
 module.exports = router;

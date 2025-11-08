@@ -485,15 +485,24 @@ exports.createCustomer = async (req, res) => {
       membershipId = null;
     }
 
-    if (!name || !email || !restaurantId) {
+    // Priority: env RESTAURANT_ID (supports both spellings) > body.restaurantId
+    const getRestaurantIdFromEnv = () => {
+      return process.env.RESTAURANT_ID || process.env.RESTAURENT_ID;
+    };
+    const finalRestaurantId = getRestaurantIdFromEnv() || restaurantId;
+    
+    console.log("🔍 Creating customer with restaurantId:", finalRestaurantId);
+    console.log("🔍 Source: RESTAURANT_ID=", process.env.RESTAURANT_ID, "RESTAURENT_ID=", process.env.RESTAURENT_ID, "body=", restaurantId);
+
+    if (!name || !email || !finalRestaurantId) {
       return res.status(400).json({
         success: false,
-        message: "Name, email, and restaurantId are required"
+        message: "Name, email, and restaurantId are required. Set RESTAURANT_ID in env or provide in request body."
       });
     }
 
     // Check if the customer already exists
-    const existingCustomer = await Customer.findOne({ email, restaurantId });
+    const existingCustomer = await Customer.findOne({ email, restaurantId: finalRestaurantId });
 
     if (existingCustomer) {
       // If customer exists → only update rewardByAdminPoints by ADDING
@@ -522,7 +531,7 @@ exports.createCustomer = async (req, res) => {
       email,
       address,
       phoneNumber,
-      restaurantId,
+      restaurantId: finalRestaurantId,
       birthday,
       anniversary,
       corporate,
