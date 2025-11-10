@@ -1,33 +1,24 @@
 const Reservation = require("../model/Reservation");
 
-// 📌 Create Reservation (Public route - works with env RESTAURANT_ID)
+// 📌 Create Reservation (uses only req.userId from authMiddleware)
 exports.createReservation = async (req, res) => {
   try {
-    // Priority: env RESTAURANT_ID (supports both spellings) > body.restaurantId > req.userId
-    const getRestaurantIdFromEnv = () => {
-      return process.env.RESTAURANT_ID || process.env.RESTAURENT_ID;
-    };
-    const envRestaurantId = getRestaurantIdFromEnv();
-    const bodyRestaurantId = req.body.restaurantId && req.body.restaurantId.trim() !== '' ? req.body.restaurantId : undefined;
-    const finalRestaurantId = envRestaurantId || bodyRestaurantId || req.userId;
+    // Use only restaurantId from authMiddleware (req.userId)
+    const restaurantId = req.userId;
     
     console.log('═══════════════════════════════════════════════════════════');
-    console.log('📅 CREATE RESERVATION API CALLED');
+    console.log('📅 CREATE RESERVATION API CALLED (authMiddleware)');
     console.log('═══════════════════════════════════════════════════════════');
-    console.log('📋 RESTAURANT_ID SOURCES:');
-    console.log('   🔹 From ENV RESTAURANT_ID (correct):', process.env.RESTAURANT_ID || 'NOT SET');
-    console.log('   🔹 From ENV RESTAURENT_ID (typo):', process.env.RESTAURENT_ID || 'NOT SET');
-    console.log('   🔹 From ENV (final):', envRestaurantId || 'NOT SET');
-    console.log('   🔹 From body:', bodyRestaurantId || 'NOT PROVIDED');
-    console.log('   🔹 From req.userId:', req.userId || 'NOT PROVIDED');
+    console.log('📋 RESTAURANT_ID SOURCE:');
+    console.log('   🔹 From req.userId (authMiddleware):', restaurantId || 'NOT PROVIDED');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('✅ FINAL RESTAURANT_ID BEING USED:', finalRestaurantId);
+    console.log('✅ FINAL RESTAURANT_ID BEING USED:', restaurantId);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-    if (!finalRestaurantId) {
+    if (!restaurantId) {
       return res.status(400).json({
         success: false,
-        message: "Restaurant ID is required. Set RESTAURANT_ID in env or provide in request body."
+        message: "Restaurant ID is required. Please authenticate using authMiddleware."
       });
     }
 
@@ -41,7 +32,74 @@ exports.createReservation = async (req, res) => {
     }
 
     const reservation = new Reservation({
-      restaurantId: finalRestaurantId,
+      restaurantId: restaurantId,
+      customerId,
+      customerName,
+      startTime: new Date(startTime),
+      endTime: new Date(endTime),
+      tableNumber: tableNumber || '',
+      advance: advance || 0,
+      payment: payment || 0,
+      notes: notes || '',
+    });
+
+    await reservation.save();
+    console.log('✅ Reservation created successfully:', reservation._id);
+    console.log('═══════════════════════════════════════════════════════════');
+    
+    res.status(201).json({ 
+      success: true,
+      message: "Reservation created successfully", 
+      reservation 
+    });
+  } catch (err) {
+    console.error("❌ Error creating reservation:", err);
+    res.status(500).json({ 
+      success: false,
+      message: "Error creating reservation", 
+      error: err.message 
+    });
+  }
+};
+
+// 📌 Create Reservation with ENV (uses only .env RESTAURANT_ID)
+exports.createReservationWithEnv = async (req, res) => {
+  try {
+    // Use only restaurantId from .env file
+    const getRestaurantIdFromEnv = () => {
+      return process.env.RESTAURANT_ID || process.env.RESTAURENT_ID;
+    };
+    const restaurantId = getRestaurantIdFromEnv();
+    
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log('📅 CREATE RESERVATION API CALLED (ENV)');
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log('📋 RESTAURANT_ID SOURCES:');
+    console.log('   🔹 From ENV RESTAURANT_ID (correct):', process.env.RESTAURANT_ID || 'NOT SET');
+    console.log('   🔹 From ENV RESTAURENT_ID (typo):', process.env.RESTAURENT_ID || 'NOT SET');
+    console.log('   🔹 From ENV (final):', restaurantId || 'NOT SET');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('✅ FINAL RESTAURANT_ID BEING USED:', restaurantId);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+    if (!restaurantId) {
+      return res.status(400).json({
+        success: false,
+        message: "Restaurant ID is required. Set RESTAURANT_ID in .env file."
+      });
+    }
+
+    const { customerId, startTime, endTime, customerName, tableNumber, advance, payment, notes } = req.body;
+
+    if (!startTime || !endTime) {
+      return res.status(400).json({
+        success: false,
+        message: "Start time and end time are required"
+      });
+    }
+
+    const reservation = new Reservation({
+      restaurantId: restaurantId,
       customerId,
       customerName,
       startTime: new Date(startTime),

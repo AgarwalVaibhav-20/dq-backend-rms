@@ -463,6 +463,7 @@ cron.schedule('0 10 * * *', async () => {
 console.log('✅ Lost Customer Cron Job Initialized');
 
 
+// Create customer using ONLY request body restaurantId (from localStorage)
 exports.createCustomer = async (req, res) => {
   try {
     let {
@@ -485,19 +486,16 @@ exports.createCustomer = async (req, res) => {
       membershipId = null;
     }
 
-    // Priority: env RESTAURANT_ID (supports both spellings) > body.restaurantId
-    const getRestaurantIdFromEnv = () => {
-      return process.env.RESTAURANT_ID || process.env.RESTAURENT_ID;
-    };
-    const finalRestaurantId = getRestaurantIdFromEnv() || restaurantId;
+    // ONLY use restaurantId from request body (localStorage se aayegi)
+    const finalRestaurantId = restaurantId;
     
-    console.log("🔍 Creating customer with restaurantId:", finalRestaurantId);
-    console.log("🔍 Source: RESTAURANT_ID=", process.env.RESTAURANT_ID, "RESTAURENT_ID=", process.env.RESTAURENT_ID, "body=", restaurantId);
+    console.log("🔍 Creating customer with restaurantId from localStorage:", finalRestaurantId);
+    console.log("🔍 Source: body.restaurantId=", restaurantId);
 
     if (!name || !email || !finalRestaurantId) {
       return res.status(400).json({
         success: false,
-        message: "Name, email, and restaurantId are required. Set RESTAURANT_ID in env or provide in request body."
+        message: "Name, email, and restaurantId are required. Provide restaurantId in request body (from localStorage)."
       });
     }
 
@@ -551,6 +549,102 @@ exports.createCustomer = async (req, res) => {
     });
   } catch (err) {
     console.error("❌ Error in createCustomer:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Error creating customer",
+      error: err.message
+    });
+  }
+};
+
+// Create customer using ONLY .env RESTAURANT_ID (for frontend ecommerce)
+exports.createCustomerWithEnvId = async (req, res) => {
+  try {
+    let {
+      name,
+      email,
+      address,
+      phoneNumber,
+      birthday,
+      anniversary,
+      corporate,
+      membershipId,
+      membershipName,
+      rewardCustomerPoints,
+      rewardByAdminPoints,
+      link,
+    } = req.body;
+
+    if (membershipId === "") {
+      membershipId = null;
+    }
+
+    // ONLY use .env RESTAURANT_ID (supports both spellings)
+    const getRestaurantIdFromEnv = () => {
+      return process.env.RESTAURANT_ID || process.env.RESTAURENT_ID;
+    };
+    const finalRestaurantId = getRestaurantIdFromEnv();
+    
+    console.log("🔍 Creating customer with ENV restaurantId:", finalRestaurantId);
+    console.log("🔍 Source: RESTAURANT_ID=", process.env.RESTAURANT_ID, "RESTAURENT_ID=", process.env.RESTAURENT_ID);
+
+    if (!name || !email || !finalRestaurantId) {
+      return res.status(400).json({
+        success: false,
+        message: "Name, email, and RESTAURANT_ID in .env are required."
+      });
+    }
+
+    // Check if the customer already exists
+    const existingCustomer = await Customer.findOne({ email, restaurantId: finalRestaurantId });
+
+    if (existingCustomer) {
+      // If customer exists → only update rewardByAdminPoints by ADDING
+      const currentPoints = Number(existingCustomer.rewardByAdminPoints) || 0;
+      const pointsToAdd = Number(rewardByAdminPoints) || 0;
+
+      existingCustomer.rewardByAdminPoints = currentPoints + pointsToAdd;
+      
+      // Update link if provided
+      if (link !== undefined && link !== null && link.trim() !== '') {
+        existingCustomer.link = link.trim();
+      }
+
+      await existingCustomer.save(); // pre-save hook updates totalReward
+
+      return res.status(200).json({
+        success: true,
+        message: `Existing customer updated. Added ${pointsToAdd} admin reward points.`,
+        customer: existingCustomer
+      });
+    }
+
+    // Otherwise, create a new customer
+    const newCustomer = new Customer({
+      name,
+      email,
+      address,
+      phoneNumber,
+      restaurantId: finalRestaurantId,
+      birthday,
+      anniversary,
+      corporate,
+      membershipId,
+      membershipName,
+      rewardCustomerPoints: rewardCustomerPoints || 0,
+      rewardByAdminPoints: rewardByAdminPoints || 0,
+      link: link && link.trim() !== '' ? link.trim() : null,
+    });
+
+    await newCustomer.save(); // pre-save hook will calculate totalReward
+
+    return res.status(201).json({
+      success: true,
+      message: "Customer created successfully",
+      customer: newCustomer
+    });
+  } catch (err) {
+    console.error("❌ Error in createCustomerWithEnvId:", err);
     return res.status(500).json({
       success: false,
       message: "Error creating customer",

@@ -127,22 +127,21 @@ exports.getBanners = async (req, res) => {
   }
 };
 
-// Public API to get banners by restaurantId (for customer menu)
+// Public API to get banners by restaurantId from localStorage (for customer menu)
 exports.getPublicBanners = async (req, res) => {
   try {
-    // Priority: env RESTAURANT_ID (supports both spellings) > query.restaurantId
-    const getRestaurantIdFromEnv = () => {
-      return process.env.RESTAURANT_ID || process.env.RESTAURENT_ID;
-    };
-    const restaurantId = getRestaurantIdFromEnv() || req.query.restaurantId;
+    // Use restaurantId from query params (sent from frontend localStorage)
+    const restaurantId = req.query.restaurantId;
     
-    console.log("🌐 Public Banner API - restaurantId:", restaurantId);
-    console.log("🔍 Source: RESTAURANT_ID=", process.env.RESTAURANT_ID, "RESTAURENT_ID=", process.env.RESTAURENT_ID, "query=", req.query.restaurantId);
+    console.log("🌐 Public Banner API - restaurantId (from localStorage):", restaurantId);
+    console.log("🔍 Source: query.restaurantId =", req.query.restaurantId);
+    console.log("🔍 Request URL:", req.url);
     
     if (!restaurantId) {
+      console.warn("⚠️ No restaurantId provided in query params (from localStorage)");
       return res.status(400).json({ 
         success: false,
-        message: "restaurantId is required. Set RESTAURANT_ID in env or provide in query parameter." 
+        message: "restaurantId is required. Please provide restaurantId in query parameter (from localStorage)." 
       });
     }
 

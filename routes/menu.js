@@ -15,8 +15,11 @@ const {
 
 router.get("/menu/allmenues", authMiddleware, getMenuItems);
 // Public API for customer menu (no auth required)
-const { getPublicMenuItems } = require("../controllers/NewMenuController");
+const { getPublicMenuItems, getPublicMenuItemsWithEnv } = require("../controllers/NewMenuController");
+// Route using localStorage restaurantId (from frontend query params)
 router.get("/menu/public/allmenues", getPublicMenuItems);
+// Route using .env restaurantId
+router.get("/menu/public/env/allmenues", getPublicMenuItemsWithEnv);
 router.post("/menu/add", authMiddleware, uploadMiddleware, createMenuItem);
 router.put('/menus/status', authMiddleware, updateMenuStatus);
 router.put("/menu/update/:id", authMiddleware, uploadMiddleware, updateMenuItem);

@@ -276,7 +276,7 @@ module.exports = {
   },
   async resetOtp(req, res) {
 
-    res.json({ message: "Password reset successfully ✅" });
+    // res.json({ message: "Password reset successfully ✅" });
     try {
       const { email, otp, newPassword } = req.body;
 

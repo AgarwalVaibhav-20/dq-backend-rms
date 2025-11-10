@@ -8,7 +8,10 @@ const {authMiddleware, optionalAuthMiddleware} = require("../middleware/authMidd
 router.get("/available-slots", optionalAuthMiddleware, reservationController.getAvailableTimeSlots); // Must be before /:id
 router.get("/all", optionalAuthMiddleware, reservationController.getAllReservations);
 router.get("/debug/all", authMiddleware, reservationController.getAllReservations);
-router.post("/add", optionalAuthMiddleware, reservationController.createReservation);
+// Route using authMiddleware restaurantId (req.userId)
+router.post("/add", authMiddleware, reservationController.createReservation);
+// Route using .env restaurantId (no authentication required)
+router.post("/add/env", reservationController.createReservationWithEnv);
 
 // Parameterized routes (must come AFTER specific routes)
 router.put("/:id", optionalAuthMiddleware, reservationController.updateReservation);
