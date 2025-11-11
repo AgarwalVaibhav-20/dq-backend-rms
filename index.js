@@ -54,7 +54,8 @@ const PORT = process.env.PORT || 4000;
 
 // Middleware
 const allowedOrigins = [
-  'https://dq-rms.vercel.app',
+   process.env.FRONTEND_URL,
+   process.env.ACT_ECOMMERCE_URL,
   'http://localhost:3000', // React default port
   'http://localhost:5173', // Vite default port
   'http://localhost:5174', // Vite alternate port
@@ -99,7 +100,7 @@ console.log('══════════════════════�
 console.log('🚀 BACKEND SERVER STARTING...');
 console.log('═══════════════════════════════════════════════════════════');
 console.log('📋 ENVIRONMENT VARIABLES:');
-console.log('   🔹 RESTAURANT_ID (correct):', process.env.RESTAURANT_ID || '⚠️ NOT SET');
+// console.log('   🔹 RESTAURANT_ID (correct):', process.env.RESTAURANT_ID || '⚠️ NOT SET');
 console.log('   🔹 RESTAURENT_ID (typo):', process.env.RESTAURENT_ID || '⚠️ NOT SET');
 console.log('   🔹 FINAL RESTAURANT_ID:', restaurantIdFromEnv || '⚠️ NOT SET - Please set in .env file');
 console.log('   🔹 MONGO_URL:', process.env.MONGO_URL ? '✅ SET' : '⚠️ NOT SET');
@@ -111,7 +112,7 @@ global.getRestaurantIdFromEnv = getRestaurantIdFromEnv;
 
 // Default route
 app.get("/", (req, res) => {
-  res.send("Hello World");
+  res.send("Hello From ACT RMS backend");
 });
 
 // Public routes (must be registered BEFORE auth routes to avoid conflicts)
@@ -161,9 +162,9 @@ startCronJobs();
 initializeAutoEmailService();
 
 // 1. COMMENT this (for prod)
-app.listen(PORT, () => {
-  console.log(`🚀 Server started at http://localhost:${PORT}`);
-});
+// app.listen(PORT, () => {
+//   console.log(`🚀 Server started at http://localhost:${PORT}`);
+// });
 
 // UNcomment this (for prod)
-// module.exports = app;
+module.exports = app;
