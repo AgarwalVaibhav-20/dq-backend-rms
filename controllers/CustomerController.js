@@ -579,19 +579,17 @@ exports.createCustomerWithEnvId = async (req, res) => {
       membershipId = null;
     }
 
-    // ONLY use .env RESTAURANT_ID (supports both spellings)
-    const getRestaurantIdFromEnv = () => {
-      return process.env.RESTAURANT_ID || process.env.RESTAURENT_ID;
-    };
-    const finalRestaurantId = getRestaurantIdFromEnv();
+    // ✅ ONLY use body.restaurantId (from frontend VITE_RESTAURENT_ID) - backend .env RESTAURANT_ID NOT used
+    const finalRestaurantId = req.body.restaurantId && req.body.restaurantId.trim() !== '' ? req.body.restaurantId.trim() : undefined;
     
-    console.log("🔍 Creating customer with ENV restaurantId:", finalRestaurantId);
-    console.log("🔍 Source: RESTAURANT_ID=", process.env.RESTAURANT_ID, "RESTAURENT_ID=", process.env.RESTAURENT_ID);
+    console.log("🔍 Creating customer with restaurantId:");
+    console.log("🔍 Source: body.restaurantId (frontend VITE_RESTAURENT_ID)=", finalRestaurantId || 'NOT PROVIDED');
+    console.log("🔍 Final restaurantId being used:", finalRestaurantId);
 
     if (!name || !email || !finalRestaurantId) {
       return res.status(400).json({
         success: false,
-        message: "Name, email, and RESTAURANT_ID in .env are required."
+        message: "Name, email, and restaurantId are required. Provide restaurantId in request body (from frontend VITE_RESTAURENT_ID)."
       });
     }
 

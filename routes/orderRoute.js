@@ -4,9 +4,8 @@ const orderController = require("../controllers/OrderController");
 const {authMiddleware} = require("../middleware/authMiddleware");
 
 // 📦 Order Routes
-// Public route - Priority: body.restaurantId (FIRST - from localStorage) > env RESTAURANT_ID (fallback) > req.userId
-// 🔥 CRITICAL: localStorage की restaurantId को FIRST PRIORITY दी गई है
-// 🔥 NOTE: If you change RESTAURANT_ID in .env file, RESTART the backend server
+// Public route - ONLY uses body.restaurantId (from frontend VITE_RESTAURENT_ID or localStorage) - backend .env RESTAURANT_ID NOT used
+// 🔥 CRITICAL: Frontend .env की VITE_RESTAURENT_ID को use किया जाता है - backend .env RESTAURANT_ID use नहीं होती
 router.post("/create/order", orderController.createOrder); // Public - customer menu se order bnane ke liye
 
 // Public route to get orders by restaurantId (query parameter only - .env RESTAURANT_ID NOT used)

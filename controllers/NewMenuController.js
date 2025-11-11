@@ -399,36 +399,31 @@ exports.getPublicMenuItems = async (req, res) => {
   }
 };
 
-// Public API to get menu items by restaurantId from .env (for customer menu)
+// Public API to get menu items by restaurantId from frontend VITE_RESTAURENT_ID (for customer menu)
 exports.getPublicMenuItemsWithEnv = async (req, res) => {
   try {
     console.log('═══════════════════════════════════════════════════════════');
-    console.log('🍽️  PUBLIC MENU API CALLED (ENV restaurantId)');
+    console.log('🍽️  PUBLIC MENU API CALLED (frontend VITE_RESTAURENT_ID)');
     console.log('═══════════════════════════════════════════════════════════');
     
-    // Use restaurantId from .env file only
-    const getRestaurantIdFromEnv = () => {
-      return process.env.RESTAURANT_ID || process.env.RESTAURENT_ID;
-    };
-    const envRestaurantId = getRestaurantIdFromEnv();
+    // ✅ ONLY use query.restaurantId (from frontend VITE_RESTAURENT_ID) - backend .env RESTAURANT_ID NOT used
+    const queryRestaurantId = req.query.restaurantId && req.query.restaurantId.trim() !== '' ? req.query.restaurantId.trim() : undefined;
+    const restaurantId = queryRestaurantId;
     
-    console.log('📋 RESTAURANT_ID SOURCES:');
-    console.log('   🔹 From ENV RESTAURANT_ID (correct):', process.env.RESTAURANT_ID || 'NOT SET');
-    console.log('   🔹 From ENV RESTAURENT_ID (typo):', process.env.RESTAURENT_ID || 'NOT SET');
-    console.log('   🔹 From ENV (final):', envRestaurantId || 'NOT SET');
+    console.log('📋 RESTAURANT_ID SOURCE:');
+    console.log('   🔹 From query.restaurantId (frontend VITE_RESTAURENT_ID):', queryRestaurantId || 'NOT PROVIDED');
     console.log('   🔹 Request URL:', req.url);
-    
-    const restaurantId = envRestaurantId;
-    
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('✅ FINAL RESTAURANT_ID BEING USED:', restaurantId);
-    console.log('   Type:', typeof restaurantId);
-    console.log('   Length:', restaurantId ? restaurantId.length : 0);
+    console.log('✅ FINAL RESTAURANT_ID BEING USED:', restaurantId || 'NOT PROVIDED');
+    if (restaurantId) {
+      console.log('   Type:', typeof restaurantId);
+      console.log('   Length:', restaurantId.length);
+    }
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     
     if (!restaurantId) {
       console.warn('⚠️ ⚠️ ⚠️ NO RESTAURANT_ID FOUND! ⚠️ ⚠️ ⚠️');
-      console.warn('   Please set RESTAURANT_ID in backend .env file');
+      console.warn('   Please provide restaurantId in query parameter (from frontend VITE_RESTAURENT_ID)');
       console.warn('   Returning empty menu array.');
       return res.status(200).json([]); // Return empty array instead of error
     }

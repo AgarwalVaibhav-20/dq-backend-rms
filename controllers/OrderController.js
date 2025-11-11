@@ -73,30 +73,22 @@ exports.createOrder = async (req, res) => {
       });
     }
 
-    // Check if restaurantId is available from any source
-    // 🔥 NOTE: process.env values are loaded at server startup
-    // If you change RESTAURANT_ID in .env file, you need to RESTART the backend server
-    // The new value will be available immediately after server restart
-    const getRestaurantIdFromEnv = () => {
-      return process.env.RESTAURANT_ID || process.env.RESTAURENT_ID;
-    };
-    const envRestaurantId = getRestaurantIdFromEnv();
+    // ✅ ONLY use body.restaurantId (from frontend VITE_RESTAURENT_ID or localStorage) - backend .env RESTAURANT_ID NOT used
     // Filter out empty strings - treat empty string as undefined
-    const bodyRestaurantId = (restaurantId && restaurantId.trim() !== '') ? restaurantId : undefined;
+    const bodyRestaurantId = (restaurantId && restaurantId.trim() !== '') ? restaurantId.trim() : undefined;
     const userRestaurantId = req.userId;
     
     console.log('🔍 Restaurant ID resolution (Backend):', {
-      envRestaurantId: envRestaurantId || 'NOT SET',
       bodyRestaurantId: bodyRestaurantId || 'NOT PROVIDED',
       userRestaurantId: userRestaurantId || 'NOT PROVIDED',
       originalBodyRestaurantId: restaurantId,
-      note: 'Priority: body.restaurantId (FIRST - from localStorage) > env RESTAURANT_ID (fallback) > req.userId'
+      note: 'Priority: body.restaurantId (from frontend VITE_RESTAURENT_ID or localStorage) > req.userId (if authenticated) - backend .env RESTAURANT_ID NOT used'
     });
     
-    if (!bodyRestaurantId && !envRestaurantId && !userRestaurantId) {
+    if (!bodyRestaurantId && !userRestaurantId) {
       return res.status(400).json({
         success: false,
-        message: "Restaurant ID is required. Set RESTAURANT_ID in env, provide in request body (from localStorage), or authenticate."
+        message: "Restaurant ID is required. Provide restaurantId in request body (from frontend VITE_RESTAURENT_ID or localStorage) or authenticate."
       });
     }
 
@@ -107,10 +99,9 @@ exports.createOrder = async (req, res) => {
       });
     }
 
-    // 🔥 CRITICAL FIX: Priority - body.restaurantId (FIRST) > env RESTAURANT_ID (fallback) > req.userId
-    // अगर localStorage में restaurantId है, तो उसे use करेंगे (body में आती है)
-    // अगर localStorage में restaurantId नहीं है, तो backend env RESTAURANT_ID use होगी
-    const finalRestaurantId = bodyRestaurantId || envRestaurantId || userRestaurantId;
+    // ✅ Priority: body.restaurantId (from frontend VITE_RESTAURENT_ID or localStorage) FIRST > req.userId (if authenticated)
+    // Backend .env RESTAURANT_ID is NOT used
+    const finalRestaurantId = bodyRestaurantId || userRestaurantId;
     // For public routes, if userId is not provided, use restaurantId as userId (same restaurant owner)
     // This allows public orders to work without authentication
     const finalUserId = userId || req.userId || finalRestaurantId;
@@ -119,7 +110,7 @@ exports.createOrder = async (req, res) => {
     if (!finalRestaurantId || (typeof finalRestaurantId === 'string' && finalRestaurantId.trim() === '')) {
       return res.status(400).json({
         success: false,
-        message: "Invalid Restaurant ID. Please set RESTAURANT_ID in backend .env file."
+        message: "Invalid Restaurant ID. Please provide restaurantId in request body (from frontend VITE_RESTAURENT_ID or localStorage) or authenticate."
       });
     }
     
@@ -127,18 +118,16 @@ exports.createOrder = async (req, res) => {
     if (!finalUserId || (typeof finalUserId === 'string' && finalUserId.trim() === '')) {
       return res.status(400).json({
         success: false,
-        message: "User ID is required. Please authenticate or set RESTAURANT_ID in backend .env file."
+        message: "User ID is required. Please provide restaurantId in request body or authenticate."
       });
     }
 
     console.log("🔍 Creating order with restaurantId:", finalRestaurantId);
-    console.log("🔍 Source: RESTAURANT_ID=", process.env.RESTAURANT_ID, "RESTAURENT_ID=", process.env.RESTAURENT_ID, "body=", restaurantId, "user=", req.userId);
+    console.log("🔍 Source: body.restaurantId=", bodyRestaurantId || 'NOT PROVIDED', "req.userId=", req.userId || 'NOT PROVIDED');
     console.log("🔍 Final restaurantId:", finalRestaurantId);
-    console.log("🔍 Final restaurantId source:", bodyRestaurantId && finalRestaurantId === bodyRestaurantId ? 'body (localStorage from frontend) - FIRST PRIORITY ✅' : (envRestaurantId && finalRestaurantId === envRestaurantId ? 'env RESTAURANT_ID (fallback)' : 'req.userId'));
+    console.log("🔍 Final restaurantId source:", bodyRestaurantId && finalRestaurantId === bodyRestaurantId ? 'body (from frontend VITE_RESTAURENT_ID or localStorage) - FIRST PRIORITY ✅' : 'req.userId (authenticated)');
     if (bodyRestaurantId && finalRestaurantId === bodyRestaurantId) {
-      console.log("🔍✅✅✅ LOCALSTORAGE RESTAURANTID IS BEING USED (FIRST PRIORITY)");
-    } else if (envRestaurantId && finalRestaurantId === envRestaurantId) {
-      console.log("🔍✅✅✅ ENV RESTAURANT_ID IS BEING USED (FALLBACK - localStorage में नहीं थी)");
+      console.log("🔍✅✅✅ RESTAURANTID FROM FRONTEND IS BEING USED (FIRST PRIORITY)");
     }
     console.log("Final userId:", finalUserId);
 

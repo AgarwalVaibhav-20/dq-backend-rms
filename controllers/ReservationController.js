@@ -62,22 +62,17 @@ exports.createReservation = async (req, res) => {
   }
 };
 
-// 📌 Create Reservation with ENV (uses only .env RESTAURANT_ID)
+// 📌 Create Reservation with ENV (ONLY uses body.restaurantId from frontend VITE_RESTAURENT_ID)
 exports.createReservationWithEnv = async (req, res) => {
   try {
-    // Use only restaurantId from .env file
-    const getRestaurantIdFromEnv = () => {
-      return process.env.RESTAURANT_ID || process.env.RESTAURENT_ID;
-    };
-    const restaurantId = getRestaurantIdFromEnv();
+    // ✅ ONLY use body.restaurantId (from frontend VITE_RESTAURENT_ID) - backend .env RESTAURANT_ID NOT used
+    const restaurantId = req.body.restaurantId && req.body.restaurantId.trim() !== '' ? req.body.restaurantId.trim() : undefined;
     
     console.log('═══════════════════════════════════════════════════════════');
     console.log('📅 CREATE RESERVATION API CALLED (ENV)');
     console.log('═══════════════════════════════════════════════════════════');
-    console.log('📋 RESTAURANT_ID SOURCES:');
-    console.log('   🔹 From ENV RESTAURANT_ID (correct):', process.env.RESTAURANT_ID || 'NOT SET');
-    console.log('   🔹 From ENV RESTAURENT_ID (typo):', process.env.RESTAURENT_ID || 'NOT SET');
-    console.log('   🔹 From ENV (final):', restaurantId || 'NOT SET');
+    console.log('📋 RESTAURANT_ID SOURCE:');
+    console.log('   🔹 From body.restaurantId (frontend VITE_RESTAURENT_ID):', restaurantId || 'NOT PROVIDED');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('✅ FINAL RESTAURANT_ID BEING USED:', restaurantId);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -85,7 +80,7 @@ exports.createReservationWithEnv = async (req, res) => {
     if (!restaurantId) {
       return res.status(400).json({
         success: false,
-        message: "Restaurant ID is required. Set RESTAURANT_ID in .env file."
+        message: "Restaurant ID is required. Provide restaurantId in request body (from frontend VITE_RESTAURENT_ID)."
       });
     }
 
@@ -129,25 +124,19 @@ exports.createReservationWithEnv = async (req, res) => {
   }
 };
 
-// 📌 Get all reservations (Public route - works with env RESTAURANT_ID)
+// 📌 Get all reservations (Public route - ONLY uses query.restaurantId from frontend VITE_RESTAURENT_ID or req.userId)
 exports.getAllReservations = async (req, res) => {
   try {
-    // Priority: env RESTAURANT_ID (supports both spellings) > req.userId > query.restaurantId
-    const getRestaurantIdFromEnv = () => {
-      return process.env.RESTAURANT_ID || process.env.RESTAURENT_ID;
-    };
-    const envRestaurantId = getRestaurantIdFromEnv();
-    const restaurantId = envRestaurantId || req.userId || req.query.restaurantId;
+    // ✅ Priority: query.restaurantId (from frontend VITE_RESTAURENT_ID) FIRST > req.userId (optional) - backend .env RESTAURANT_ID NOT used
+    const queryRestaurantId = req.query.restaurantId && req.query.restaurantId.trim() !== '' ? req.query.restaurantId.trim() : undefined;
+    const restaurantId = queryRestaurantId || req.userId;
     
     console.log('═══════════════════════════════════════════════════════════');
     console.log('📅 GET ALL RESERVATIONS API CALLED');
     console.log('═══════════════════════════════════════════════════════════');
     console.log('📋 RESTAURANT_ID SOURCES:');
-    console.log('   🔹 From ENV RESTAURANT_ID (correct):', process.env.RESTAURANT_ID || 'NOT SET');
-    console.log('   🔹 From ENV RESTAURENT_ID (typo):', process.env.RESTAURENT_ID || 'NOT SET');
-    console.log('   🔹 From ENV (final):', envRestaurantId || 'NOT SET');
-    console.log('   🔹 From req.userId:', req.userId || 'NOT PROVIDED');
-    console.log('   🔹 From query string:', req.query.restaurantId || 'NOT PROVIDED');
+    console.log('   🔹 From query.restaurantId (frontend VITE_RESTAURENT_ID):', queryRestaurantId || 'NOT PROVIDED');
+    console.log('   🔹 From req.userId (optional):', req.userId || 'NOT PROVIDED');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('✅ FINAL RESTAURANT_ID BEING USED:', restaurantId);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -156,7 +145,7 @@ exports.getAllReservations = async (req, res) => {
       console.warn('⚠️ No restaurantId provided');
       return res.status(400).json({
         success: false,
-        message: "Restaurant ID is required. Set RESTAURANT_ID in env or provide in query parameter."
+        message: "Restaurant ID is required. Provide restaurantId in query parameter (from frontend VITE_RESTAURENT_ID) or authenticate."
       });
     }
 
@@ -204,25 +193,18 @@ exports.getAllReservations = async (req, res) => {
   }
 };
 
-// 📌 Get available time slots for a specific date (Public route)
+// 📌 Get available time slots for a specific date (Public route - ONLY uses query.restaurantId from frontend VITE_RESTAURENT_ID)
 exports.getAvailableTimeSlots = async (req, res) => {
   try {
-    // Priority: env RESTAURANT_ID (supports both spellings) > query.restaurantId
-    const getRestaurantIdFromEnv = () => {
-      return process.env.RESTAURANT_ID || process.env.RESTAURENT_ID;
-    };
-    const envRestaurantId = getRestaurantIdFromEnv();
-    const restaurantId = envRestaurantId || req.query.restaurantId;
+    // ✅ ONLY use query.restaurantId (from frontend VITE_RESTAURENT_ID) - backend .env RESTAURANT_ID NOT used
+    const restaurantId = req.query.restaurantId && req.query.restaurantId.trim() !== '' ? req.query.restaurantId.trim() : undefined;
     const { date } = req.query;
     
     console.log('═══════════════════════════════════════════════════════════');
     console.log('🕐 GET AVAILABLE TIME SLOTS API CALLED');
     console.log('═══════════════════════════════════════════════════════════');
-    console.log('📋 RESTAURANT_ID SOURCES:');
-    console.log('   🔹 From ENV RESTAURANT_ID (correct):', process.env.RESTAURANT_ID || 'NOT SET');
-    console.log('   🔹 From ENV RESTAURENT_ID (typo):', process.env.RESTAURENT_ID || 'NOT SET');
-    console.log('   🔹 From ENV (final):', envRestaurantId || 'NOT SET');
-    console.log('   🔹 From query string:', req.query.restaurantId || 'NOT PROVIDED');
+    console.log('📋 RESTAURANT_ID SOURCE:');
+    console.log('   🔹 From query.restaurantId (frontend VITE_RESTAURENT_ID):', restaurantId || 'NOT PROVIDED');
     console.log('   🔹 Request date:', date || 'NOT PROVIDED');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('✅ FINAL RESTAURANT_ID BEING USED:', restaurantId);
@@ -231,7 +213,7 @@ exports.getAvailableTimeSlots = async (req, res) => {
     if (!restaurantId) {
       return res.status(400).json({
         success: false,
-        message: "Restaurant ID is required. Set RESTAURANT_ID in env or provide in query parameter."
+        message: "Restaurant ID is required. Provide restaurantId in query parameter (from frontend VITE_RESTAURENT_ID)."
       });
     }
 
