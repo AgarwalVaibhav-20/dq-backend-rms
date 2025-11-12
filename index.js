@@ -55,12 +55,13 @@ const PORT = process.env.PORT || 4000;
 // Middleware
 const allowedOrigins = [
    process.env.FRONTEND_URL,
-   process.env.ACT_ECOMMERCE_URL,
+   ...process.env.ACT_ECOMMERCE_URLS.split(','),
   'http://localhost:3000', // React default port
   'http://localhost:5173', // Vite default port
   'http://localhost:5174', // Vite alternate port
 ];
-
+console.log("allowed cross-origins =",process.env.ACT_ECOMMERCE_URLS)
+console.log("allowed origins =",allowedOrigins)
 const corsOptions = {
   origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps or curl requests)
@@ -162,9 +163,9 @@ startCronJobs();
 initializeAutoEmailService();
 
 // 1. COMMENT this (for prod)
-// app.listen(PORT, () => {
-//   console.log(`🚀 Server started at http://localhost:${PORT}`);
-// });
+app.listen(PORT, () => {
+  console.log(`🚀 Server started at http://localhost:${PORT}`);
+});
 
 // UNcomment this (for prod)
-module.exports = app;
+// module.exports = app;
