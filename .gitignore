@@ -1,3 +1,6 @@
+# Vercel build folder
+.vercel/
+
 # Logs
 logs
 node_modules
