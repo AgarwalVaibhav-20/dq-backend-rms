@@ -11,6 +11,7 @@ router.post('/reset-password' , AuthController.resetOtp);
 router.post("/logout", authMiddleware, AuthController.logout);
 router.post("/force-logout", AuthController.forceLogoutByUserId);
 router.get("/user-profile/:userId", authMiddleware, AuthController.getUserProfile);
+router.get('/public/rest-profile/:restaurantId', AuthController.getRestaurantProfile)
 router.get('/rest-profile/:restaurantId' , authMiddleware , AuthController.getRestaurantProfile)
 router.get('/getall/user', authMiddleware , AuthController.getAllUsers)
 router.put('/users/role/:id/', authMiddleware, AuthController.updateUserRole);
