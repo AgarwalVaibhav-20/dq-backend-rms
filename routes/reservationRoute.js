@@ -6,6 +6,7 @@ const {authMiddleware, optionalAuthMiddleware} = require("../middleware/authMidd
 // IMPORTANT: Specific routes MUST come BEFORE parameterized routes (/:id)
 // Public routes - ONLY use query/body.restaurantId (from frontend VITE_RESTAURENT_ID) - backend .env RESTAURANT_ID NOT used
 router.get("/available-slots", optionalAuthMiddleware, reservationController.getAvailableTimeSlots); // Must be before /:id
+router.post("/available-tables", optionalAuthMiddleware, reservationController.getAvailableTables); // Must be before /:id
 router.get("/all", optionalAuthMiddleware, reservationController.getAllReservations);
 router.get("/debug/all", authMiddleware, reservationController.getAllReservations);
 // Route using authMiddleware restaurantId (req.userId)

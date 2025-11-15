@@ -1,4 +1,5 @@
 const Reservation = require("../model/Reservation");
+const QrCode = require("../model/QrCode");
 
 // 📌 Create Reservation (uses only req.userId from authMiddleware)
 exports.createReservation = async (req, res) => {
@@ -406,6 +407,128 @@ exports.cancelReservation = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Error cancelling reservation",
+      error: err.message,
+    });
+  }
+};
+
+// 📌 Get available tables for a datetime range (Public route - ONLY uses body.restaurantId from frontend VITE_RESTAURENT_ID)
+exports.getAvailableTables = async (req, res) => {
+  try {
+    // ✅ ONLY use body.restaurantId (from frontend VITE_RESTAURENT_ID) - backend .env RESTAURANT_ID NOT used
+    const restaurantId = req.body.restaurantId && req.body.restaurantId.trim() !== '' ? req.body.restaurantId.trim() : undefined;
+    const { userStart, userEnd } = req.body;
+    
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log('🪑 GET AVAILABLE TABLES API CALLED');
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log('📋 RESTAURANT_ID SOURCE:');
+    console.log('   🔹 From body.restaurantId (frontend VITE_RESTAURENT_ID):', restaurantId || 'NOT PROVIDED');
+    console.log('   🔹 User Start:', userStart || 'NOT PROVIDED');
+    console.log('   🔹 User End:', userEnd || 'NOT PROVIDED');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('✅ FINAL RESTAURANT_ID BEING USED:', restaurantId);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+    if (!restaurantId) {
+      return res.status(400).json({
+        success: false,
+        message: "Restaurant ID is required. Provide restaurantId in request body (from frontend VITE_RESTAURENT_ID)."
+      });
+    }
+
+    if (!userStart || !userEnd) {
+      return res.status(400).json({
+        success: false,
+        message: "userStart and userEnd are required in ISO format (e.g., '2024-01-15T10:00:00.000Z')"
+      });
+    }
+
+    // Convert userStart and userEnd to Date objects
+    const userStartDate = new Date(userStart);
+    const userEndDate = new Date(userEnd);
+
+    if (isNaN(userStartDate.getTime()) || isNaN(userEndDate.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid date format. Please use ISO format (e.g., '2024-01-15T10:00:00.000Z')"
+      });
+    }
+
+    if (userStartDate >= userEndDate) {
+      return res.status(400).json({
+        success: false,
+        message: "userStart must be before userEnd"
+      });
+    }
+
+    console.log('🔍 Searching for overlapping reservations...');
+    console.log('   User Start:', userStartDate);
+    console.log('   User End:', userEndDate);
+
+    // MongoDB query: Find reservations that overlap with user's datetime range
+    // Overlap condition: reservation.startTime < userEnd AND reservation.endTime > userStart
+    const overlappingReservations = await Reservation.find({
+      restaurantId,
+      startTime: { $lt: userEndDate },
+      endTime: { $gt: userStartDate }
+    });
+
+    console.log('✅ Found', overlappingReservations.length, 'overlapping reservations');
+
+    // Get distinct tableNumbers from overlapping reservations
+    const bookedTableNumbers = [...new Set(
+      overlappingReservations
+        .map(res => res.tableNumber)
+        .filter(Boolean) // Remove empty/null table numbers
+    )];
+
+    console.log('📋 Booked tables:', bookedTableNumbers);
+
+    // Get all tables for this restaurant
+    const allQrCodes = await QrCode.find({ restaurantId });
+    const allTableNumbers = allQrCodes.map(qr => qr.tableNumber).filter(Boolean);
+
+    console.log('✅ Total tables in restaurant:', allTableNumbers.length);
+
+    // Get available tables (all tables that are not booked)
+    const availableTableNumbers = allTableNumbers.filter(tableNum => {
+      // Check both formats: exact match and with/without "T" prefix
+      const normalizedTableNum = tableNum.toString().trim();
+      const normalizedTableNumNoT = normalizedTableNum.toUpperCase().startsWith('T') 
+        ? normalizedTableNum.substring(1) 
+        : normalizedTableNum;
+      
+      return !bookedTableNumbers.some(booked => {
+        const normalizedBooked = booked.toString().trim();
+        const normalizedBookedNoT = normalizedBooked.toUpperCase().startsWith('T') 
+          ? normalizedBooked.substring(1) 
+          : normalizedBooked;
+        
+        return normalizedTableNum === normalizedBooked || 
+               normalizedTableNumNoT === normalizedBookedNoT ||
+               normalizedTableNum === normalizedBookedNoT ||
+               normalizedTableNumNoT === normalizedBooked;
+      });
+    });
+
+    console.log('✅ Available tables:', availableTableNumbers.length);
+    console.log('📋 Available tables:', availableTableNumbers);
+    console.log('═══════════════════════════════════════════════════════════');
+
+    res.json({
+      success: true,
+      availableTables: availableTableNumbers,
+      bookedTables: bookedTableNumbers,
+      totalTables: allTableNumbers.length,
+      availableCount: availableTableNumbers.length,
+      bookedCount: bookedTableNumbers.length
+    });
+  } catch (err) {
+    console.error("❌ Error fetching available tables:", err);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching available tables",
       error: err.message,
     });
   }
