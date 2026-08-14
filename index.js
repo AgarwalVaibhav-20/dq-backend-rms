@@ -55,13 +55,13 @@ const PORT = process.env.PORT || 4000;
 // Middleware
 const allowedOrigins = [
    process.env.FRONTEND_URL,
-   ...process.env.ACT_ECOMMERCE_URLS.split(','),
+   ...(process.env.ACT_ECOMMERCE_URLS ? process.env.ACT_ECOMMERCE_URLS.split(',') : []),
   'http://localhost:3000', // React default port
   'http://localhost:5173', // Vite default port
   'http://localhost:5174', // Vite alternate port
-];
-console.log("allowed cross-origins =",process.env.ACT_ECOMMERCE_URLS)
-console.log("allowed origins =",allowedOrigins)
+].filter(Boolean);
+console.log("allowed cross-origins =", process.env.ACT_ECOMMERCE_URLS || "none")
+console.log("allowed origins =", allowedOrigins)
 const corsOptions = {
   origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps or curl requests)

@@ -89,11 +89,7 @@ module.exports = {
       });
 
       await user.save();
-      
-      // 🔥 Set restaurantId to user's own _id after user is created
-      user.restaurantId = user._id;
-      await user.save();
-      
+
       await UserProfile.create({
         userId: user._id,
         email: user.email,
@@ -121,7 +117,10 @@ module.exports = {
       });
     } catch (err) {
       console.error("❌ Signup error:", err.stack);
-      return res.status(500).json({ message: "Server error during signup" });
+      return res.status(500).json({ 
+        message: "Server error during signup", 
+        error: err.message || "An unexpected error occurred" 
+      });
     }
   },
 
