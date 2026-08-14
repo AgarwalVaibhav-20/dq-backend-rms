@@ -78,9 +78,21 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-// DB connection
-// DBConnect("mongodb+srv://nileshgoyal624_db_user:nilesh774@cluster0.t0sg444.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0/dqdashboard");
-DBConnect(process.env.MONGO_URL);
+
+// Database Connection Middleware - Ensures MongoDB is connected before route handlers execute
+app.use(async (req, res, next) => {
+  try {
+    await DBConnect(process.env.MONGO_URL);
+    next();
+  } catch (err) {
+    console.error("❌ Database connection error on request:", err.message);
+    return res.status(500).json({
+      message: "Database connection failed. Please check MONGO_URL in Vercel environment variables and MongoDB Atlas IP Whitelist (0.0.0.0/0).",
+      error: err.message,
+    });
+  }
+});
+
 mongoose.connection.on("connected", () => {
   console.log("✅ Mongoose connected to MongoDB Atlas");
 });
@@ -99,7 +111,6 @@ console.log("══════════════════════�
 console.log("🚀 BACKEND SERVER STARTING...");
 console.log("═══════════════════════════════════════════════════════════");
 console.log("📋 ENVIRONMENT VARIABLES:");
-// console.log('   🔹 RESTAURANT_ID (correct):', process.env.RESTAURANT_ID || '⚠️ NOT SET');
 console.log(
   "   🔹 RESTAURENT_ID (typo):",
   process.env.RESTAURENT_ID || "⚠️ NOT SET",
@@ -163,13 +174,21 @@ app.use("/api/debug", debugRoute);
 app.use("/api/notifications", notificationRoute);
 app.use(uploadRoute);
 app.use(shortcutRoute);
-// Start cron jobs
-startCronJobs();
 
-// Initialize auto email service
-initializeAutoEmailService();
+// Start cron jobs in non-serverless environment only
+if (!process.env.VERCEL) {
+  startCronJobs();
+  initializeAutoEmailService();
+}
 
-// test commit
+// Global error handling middleware
+app.use((err, req, res, next) => {
+  console.error("❌ Global Error:", err.stack);
+  res.status(err.status || 500).json({
+    message: err.message || "Internal Server Error",
+    error: err.message,
+  });
+});
 
 // 1. COMMENT this (for prod)
 // app.listen(PORT, () => {
